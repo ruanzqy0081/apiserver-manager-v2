@@ -5,6 +5,3 @@ tar -xzf shared.tar.gz
 tar -xzf drizzle.tar.gz
 tar -xzf patches.tar.gz
 rm *.tar.gz
-npm install
-npm run build
-npm start
