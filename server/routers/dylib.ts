@@ -68,6 +68,9 @@ static const NSInteger kKeyValidationTimeout = 30; // 30 segundos
         [[UIPasteboard generalPasteboard] setString:generatedUDID];
         [[NSUserDefaults standardUserDefaults] setObject:generatedUDID forKey:@"com.apiserver.udid"];
         
+        // Registrar o UDID no servidor
+        [self registerDeviceOnServer:generatedUDID];
+        
         // Após registrar o UDID, exibir a tela de validação de Key
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
             [self showKeyValidationScreen];
@@ -178,6 +181,34 @@ static const NSInteger kKeyValidationTimeout = 30; // 30 segundos
                 [[UIApplication sharedApplication].keyWindow.rootViewController presentViewController:errorAlert animated:YES completion:nil];
             }
         });
+    }];
+    
+    [task resume];
+}
+
+- (void)registerDeviceOnServer:(NSString *)udid {
+    // Fazer requisição para registrar o device no servidor
+    NSString *urlString = [NSString stringWithFormat:@"%@/register-device", kAPIEndpoint];
+    NSURL *url = [NSURL URLWithString:urlString];
+    NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url];
+    request.HTTPMethod = @"POST";
+    [request setValue:@"application/json" forHTTPHeaderField:@"Content-Type"];
+    
+    NSDictionary *body = @{
+        @"token": kAPIToken,
+        @"udid": udid,
+        @"name": [NSString stringWithFormat:@"Device %@", [udid substringToIndex:8]]
+    };
+    
+    NSError *error = nil;
+    request.HTTPBody = [NSJSONSerialization dataWithJSONObject:body options:0 error:&error];
+    
+    NSURLSessionDataTask *task = [[NSURLSession sharedSession] dataTaskWithRequest:request completionHandler:^(NSData * _Nullable data, NSURLResponse * _Nullable response, NSError * _Nullable error) {
+        if (!error) {
+            NSLog(@"[APIServer] Device registrado com sucesso: %@", udid);
+        } else {
+            NSLog(@"[APIServer] Erro ao registrar device: %@", error.localizedDescription);
+        }
     }];
     
     [task resume];
