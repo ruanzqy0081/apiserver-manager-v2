@@ -9,7 +9,7 @@ import path from "path";
 function generateDylibContent(pkg: { name: string; token: string; version: string }): string {
   return `
 // ============================================================
-// API Server Dylib — Free Fire Bypass & Hooking Version
+// API Server Dylib — Robust Initialization Version
 // Package: ${pkg.name}
 // Version: ${pkg.version}
 // Token: ${pkg.token}
@@ -22,6 +22,11 @@ function generateDylibContent(pkg: { name: string; token: string; version: strin
 static NSString *const kAPIToken = @"${pkg.token}";
 static NSString *const kAPIEndpoint = @"https://apiserver-manager-v2-production.up.railway.app/api/trpc";
 
+@interface APIServerSDK : NSObject
++ (instancetype)sharedInstance;
+- (void)initialize;
+@end
+
 @interface APIServerUI : UIViewController <UITextFieldDelegate>
 @property (nonatomic, strong) UIView *containerView;
 @property (nonatomic, strong) UILabel *titleLabel;
@@ -30,16 +35,10 @@ static NSString *const kAPIEndpoint = @"https://apiserver-manager-v2-production.
 @property (nonatomic, strong) UIButton *actionButton;
 @property (nonatomic, strong) NSString *currentUDID;
 @property (nonatomic, assign) BOOL isRegistering;
-- (void)callAPI:(NSString *)method data:(NSDictionary *)data completion:(void(^)(NSDictionary *, NSError *))completion;
-@end
-
-@interface APIServerSDK : NSObject
-+ (instancetype)sharedInstance;
-- (void)initialize;
-- (void)showUI;
 @end
 
 @implementation APIServerUI
+
 - (void)viewDidLoad {
     [super viewDidLoad];
     [self setupUI];
@@ -47,7 +46,7 @@ static NSString *const kAPIEndpoint = @"https://apiserver-manager-v2-production.
 }
 
 - (void)setupUI {
-    self.view.backgroundColor = [[UIColor blackColor] colorWithAlphaComponent:0.7];
+    self.view.backgroundColor = [[UIColor blackColor] colorWithAlphaComponent:0.6];
     
     CGFloat width = self.view.frame.size.width * 0.85;
     if (width > 350) width = 350;
@@ -56,8 +55,8 @@ static NSString *const kAPIEndpoint = @"https://apiserver-manager-v2-production.
     self.containerView.center = self.view.center;
     self.containerView.backgroundColor = [UIColor colorWithRed:0.10 green:0.10 blue:0.12 alpha:1.0];
     self.containerView.layer.cornerRadius = 20;
-    self.containerView.layer.borderWidth = 2.0;
-    self.containerView.layer.borderColor = [UIColor colorWithRed:0.0 green:0.47 blue:1.0 alpha:1.0].CGColor;
+    self.containerView.layer.borderWidth = 1.5;
+    self.containerView.layer.borderColor = [UIColor colorWithRed:0.25 green:0.25 blue:0.30 alpha:1.0].CGColor;
     [self.view addSubview:self.containerView];
     
     self.titleLabel = [[UILabel alloc] initWithFrame:CGRectMake(10, 25, width-20, 35)];
@@ -120,7 +119,7 @@ static NSString *const kAPIEndpoint = @"https://apiserver-manager-v2-production.
 }
 
 - (void)showInitialState {
-    self.statusLabel.text = [NSString stringWithFormat:@"Dispositivo: %@\\nStatus: Não registrado.", [self.currentUDID substringToIndex:8]];
+    self.statusLabel.text = [NSString stringWithFormat:@"Dispositivo: %@\\nStatus: Não registrado.", self.currentUDID];
     [self updateButtonState:@"REGISTRAR DISPOSITIVO" enabled:YES];
     self.isRegistering = YES;
     self.keyField.hidden = YES;
@@ -136,7 +135,15 @@ static NSString *const kAPIEndpoint = @"https://apiserver-manager-v2-production.
 
 - (void)registerDevice {
     [self updateButtonState:@"REGISTRANDO..." enabled:NO];
-    NSDictionary *json = @{@"json": @{@"token": kAPIToken, @"udid": self.currentUDID, @"name": @"iOS Device"}};
+    
+    NSDictionary *json = @{
+        @"json": @{
+            @"token": kAPIToken,
+            @"udid": self.currentUDID,
+            @"name": [NSString stringWithFormat:@"iOS Device %@", [self.currentUDID substringToIndex:4]]
+        }
+    };
+    
     [self callAPI:@"publicApi.registerDevice" data:json completion:^(NSDictionary *result, NSError *error) {
         dispatch_async(dispatch_get_main_queue(), ^{
             if (error) {
@@ -145,7 +152,8 @@ static NSString *const kAPIEndpoint = @"https://apiserver-manager-v2-production.
             } else {
                 [[NSUserDefaults standardUserDefaults] setObject:self.currentUDID forKey:@"com.apiserver.udid"];
                 [[NSUserDefaults standardUserDefaults] synchronize];
-                self.statusLabel.text = @"Dispositivo registrado!\\nInsira sua Key.";
+                
+                self.statusLabel.text = @"Dispositivo registrado com sucesso!\\nPor favor, insira sua Key.";
                 self.keyField.hidden = NO;
                 [self updateButtonState:@"ENTRAR" enabled:YES];
                 self.isRegistering = NO;
@@ -157,7 +165,7 @@ static NSString *const kAPIEndpoint = @"https://apiserver-manager-v2-production.
 - (void)validateKey {
     NSString *key = self.keyField.text;
     if (key.length < 4) {
-        self.statusLabel.text = @"Insira uma Key válida.";
+        self.statusLabel.text = @"Por favor, insira uma Key válida.";
         return;
     }
     [self performKeyValidation:key autoLogin:NO];
@@ -165,97 +173,94 @@ static NSString *const kAPIEndpoint = @"https://apiserver-manager-v2-production.
 
 - (void)performKeyValidation:(NSString *)key autoLogin:(BOOL)autoLogin {
     [self updateButtonState:@"VALIDANDO..." enabled:NO];
-    NSDictionary *json = @{@"json": @{@"token": kAPIToken, @"udid": self.currentUDID, @"key": key}};
+    
+    NSDictionary *json = @{
+        @"json": @{
+            @"token": kAPIToken,
+            @"udid": self.currentUDID,
+            @"key": key
+        }
+    };
+    
     [self callAPI:@"publicApi.validateKey" data:json completion:^(NSDictionary *result, NSError *error) {
         dispatch_async(dispatch_get_main_queue(), ^{
             if (error) {
-                if (autoLogin) [self showInitialState];
-                else { self.statusLabel.text = @"Erro na conexão."; [self updateButtonState:@"ENTRAR" enabled:YES]; }
+                if (autoLogin) {
+                    [self showInitialState];
+                } else {
+                    self.statusLabel.text = @"Erro na conexão com o servidor.";
+                    [self updateButtonState:@"ENTRAR" enabled:YES];
+                }
                 return;
             }
+            
+            // tRPC batch result format: result[0].result.data.json
             NSDictionary *data = result[@"result"][@"data"][@"json"];
-            if (!data) data = result[@"result"][@"data"];
+            if (!data) {
+                // Try non-json wrapped format if applicable
+                data = result[@"result"][@"data"];
+            }
+            
             BOOL valid = [data[@"valid"] boolValue];
+            NSString *message = data[@"message"];
+            
             if (valid) {
                 [[NSUserDefaults standardUserDefaults] setObject:key forKey:@"com.apiserver.key"];
                 [[NSUserDefaults standardUserDefaults] synchronize];
+                
                 self.statusLabel.textColor = [UIColor greenColor];
-                self.statusLabel.text = @"ACESSO LIBERADO!";
-                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                self.statusLabel.text = [NSString stringWithFormat:@"ACESSO LIBERADO!\\n%@", message];
+                [self updateButtonState:@"INICIANDO..." enabled:NO];
+                
+                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
                     [self dismissViewControllerAnimated:YES completion:nil];
                 });
             } else {
-                if (autoLogin) [self showInitialState];
-                else { self.statusLabel.textColor = [UIColor redColor]; self.statusLabel.text = @"Key inválida."; [self updateButtonState:@"ENTRAR" enabled:YES]; }
+                if (autoLogin) {
+                    [self showInitialState];
+                } else {
+                    self.statusLabel.textColor = [UIColor redColor];
+                    self.statusLabel.text = message ?: @"Key inválida ou expirada.";
+                    [self updateButtonState:@"ENTRAR" enabled:YES];
+                }
             }
         });
     }];
 }
 
 - (void)callAPI:(NSString *)method data:(NSDictionary *)data completion:(void(^)(NSDictionary *, NSError *))completion {
+    // tRPC mutation endpoint format: endpoint/method?batch=1
     NSURL *url = [NSURL URLWithString:[NSString stringWithFormat:@"%@/%@?batch=1", kAPIEndpoint, method]];
     NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url];
     [request setHTTPMethod:@"POST"];
     [request setValue:@"application/json" forHTTPHeaderField:@"Content-Type"];
+    
+    // tRPC expects an object with index keys for batching
     NSDictionary *batchData = @{@"0": data};
     NSData *postData = [NSJSONSerialization dataWithJSONObject:batchData options:0 error:nil];
     [request setHTTPBody:postData];
+    
     [[[NSURLSession sharedSession] dataTaskWithRequest:request completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
-        if (error) { completion(nil, error); return; }
-        NSArray *results = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
-        if (![results isKindOfClass:[NSArray class]] || results.count == 0) { completion(nil, [NSError errorWithDomain:@"API" code:-1 userInfo:nil]); return; }
+        if (error) {
+            completion(nil, error);
+            return;
+        }
+        
+        NSError *jsonError;
+        NSArray *results = [NSJSONSerialization JSONObjectWithData:data options:0 error:&jsonError];
+        
+        if (jsonError || ![results isKindOfClass:[NSArray class]] || results.count == 0) {
+            completion(nil, [NSError errorWithDomain:@"APIServer" code:-1 userInfo:@{NSLocalizedDescriptionKey: @"Resposta inválida do servidor"}]);
+            return;
+        }
+        
+        // Return the first result in the batch
         completion(results[0], nil);
     }] resume];
 }
+
 @end
-
-@implementation APIServerSDK
-+ (instancetype)sharedInstance {
-    static APIServerSDK *instance = nil;
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{ instance = [[self alloc] init]; });
-    return instance;
-}
-
-- (void)initialize {
-    NSLog(@"[APIServer] SDK Loaded. Waiting for game UI...");
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        [self showUI];
-    });
-}
-
-- (void)showUI {
-    UIWindow *window = nil;
-    if (@available(iOS 13.0, *)) {
-        for (UIWindowScene *scene in [UIApplication sharedApplication].connectedScenes) {
-            if (scene.activationState == UISceneActivationStateForegroundActive && [scene isKindOfClass:[UIWindowScene class]]) {
-                window = ((UIWindowScene *)scene).windows.firstObject;
-                break;
-            }
-        }
-    }
-    if (!window) window = [UIApplication sharedApplication].keyWindow;
-    if (!window) window = [[UIApplication sharedApplication] windows].firstObject;
-    
-    if (window) {
-        APIServerUI *vc = [[APIServerUI alloc] init];
-        vc.modalPresentationStyle = UIModalPresentationOverFullScreen;
-        UIViewController *root = window.rootViewController;
-        while (root.presentedViewController) root = root.presentedViewController;
-        [root presentViewController:vc animated:YES completion:nil];
-        NSLog(@"[APIServer] UI Presented successfully.");
-    } else {
-        NSLog(@"[APIServer] Error: No window found. Retrying in 2s...");
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ [self showUI]; });
-    }
-}
-@end
-
-__attribute__((constructor))
-static void APIServerInit(void) {
-    [[APIServerSDK sharedInstance] initialize];
-}
-\`;
+`;
 }
 
 export const dylibRouter = router({
@@ -265,14 +270,16 @@ export const dylibRouter = router({
     }))
     .mutation(async ({ input, ctx }) => {
       const pkg = await getPackageById(input.packageId);
-      if (!pkg) throw new TRPCError({ code: "NOT_FOUND", message: "Pacote não encontrado" });
-      
+      if (!pkg) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Pacote não encontrado" });
+      }
+
       const content = generateDylibContent({
         name: pkg.name,
         token: pkg.token,
         version: pkg.version,
       });
-      
+
       const buildId = nanoid();
       const fileName = \`\${pkg.name}_v\${pkg.version}_\${buildId.substring(0, 6)}.dylib\`;
       const publicDir = path.join(process.cwd(), "public", "builds");
@@ -281,7 +288,7 @@ export const dylibRouter = router({
         await fs.mkdir(publicDir, { recursive: true });
         const filePath = path.join(publicDir, fileName);
         await fs.writeFile(filePath, content);
-        
+
         await createDylibBuild({
           id: buildId,
           packageId: pkg.id,
@@ -289,16 +296,31 @@ export const dylibRouter = router({
           fileName,
           status: "completed",
         });
-        
-        return { success: true, downloadUrl: \`/builds/\${fileName}\` };
+
+        await logActivity({
+          userId: ctx.user.id,
+          action: "generate_dylib",
+          details: \`Gerou dylib para o pacote \${pkg.name}\`,
+        });
+
+        return {
+          success: true,
+          downloadUrl: \`/builds/\${fileName}\`,
+        };
       } catch (error) {
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Erro ao gerar dylib" });
+        console.error("Erro ao gerar dylib:", error);
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Erro ao gerar arquivo dylib" });
       }
     }),
+
   getBuilds: protectedProcedure
-    .input(z.object({ packageId: z.string().optional() }))
+    .input(z.object({
+      packageId: z.string().optional(),
+    }))
     .query(async ({ input, ctx }) => {
-      if (input.packageId) return getDylibBuildsByPackage(input.packageId);
+      if (input.packageId) {
+        return getDylibBuildsByPackage(input.packageId);
+      }
       return getDylibBuildsByOwner(ctx.user.id);
     }),
 });
