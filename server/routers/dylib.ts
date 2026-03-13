@@ -194,7 +194,13 @@ static NSString *const kAPIEndpoint = @"https://apiserver-manager-v2-production.
                 return;
             }
             
+            // tRPC batch result format: result[0].result.data.json
             NSDictionary *data = result[@"result"][@"data"][@"json"];
+            if (!data) {
+                // Try non-json wrapped format if applicable
+                data = result[@"result"][@"data"];
+            }
+            
             BOOL valid = [data[@"valid"] boolValue];
             NSString *message = data[@"message"];
             
@@ -223,12 +229,15 @@ static NSString *const kAPIEndpoint = @"https://apiserver-manager-v2-production.
 }
 
 - (void)callAPI:(NSString *)method data:(NSDictionary *)data completion:(void(^)(NSDictionary *, NSError *))completion {
-    NSURL *url = [NSURL URLWithString:[NSString stringWithFormat:@"%@/%@", kAPIEndpoint, method]];
+    // tRPC mutation endpoint format: endpoint/method?batch=1
+    NSURL *url = [NSURL URLWithString:[NSString stringWithFormat:@"%@/%@?batch=1", kAPIEndpoint, method]];
     NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url];
     [request setHTTPMethod:@"POST"];
     [request setValue:@"application/json" forHTTPHeaderField:@"Content-Type"];
     
-    NSData *postData = [NSJSONSerialization dataWithJSONObject:data options:0 error:nil];
+    // tRPC expects an object with index keys for batching
+    NSDictionary *batchData = @{@"0": data};
+    NSData *postData = [NSJSONSerialization dataWithJSONObject:batchData options:0 error:nil];
     [request setHTTPBody:postData];
     
     [[[NSURLSession sharedSession] dataTaskWithRequest:request completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
@@ -236,8 +245,17 @@ static NSString *const kAPIEndpoint = @"https://apiserver-manager-v2-production.
             completion(nil, error);
             return;
         }
-        NSDictionary *result = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
-        completion(result, nil);
+        
+        NSError *jsonError;
+        NSArray *results = [NSJSONSerialization JSONObjectWithData:data options:0 error:&jsonError];
+        
+        if (jsonError || ![results isKindOfClass:[NSArray class]] || results.count == 0) {
+            completion(nil, [NSError errorWithDomain:@"APIServer" code:-1 userInfo:@{NSLocalizedDescriptionKey: @"Resposta inválida do servidor"}]);
+            return;
+        }
+        
+        // Return the first result in the batch
+        completion(results[0], nil);
     }] resume];
 }
 

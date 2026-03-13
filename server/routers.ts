@@ -46,30 +46,41 @@ export const appRouter = router({
       }))
       .mutation(async ({ input }) => {
         try {
+          console.log("[registerDevice] Request:", input);
           // Verificar se o token é válido
           const pkg = await getPackageByToken(input.token);
           if (!pkg) {
+            console.error("[registerDevice] Invalid token:", input.token);
             throw new TRPCError({ code: "UNAUTHORIZED", message: "Token inválido" });
           }
 
           // Verificar se o device já existe
           const existing = await getDeviceByUdid(input.udid);
           if (existing) {
-            await updateDevice(existing.id, { lastSeen: new Date(), status: "online" });
+            console.log("[registerDevice] Device already exists:", input.udid);
+            await updateDevice(existing.id, { 
+              lastSeen: new Date(), 
+              status: "online",
+              packageId: pkg.id // Garantir que está vinculado ao pacote atual
+            });
             return { success: true, deviceId: existing.id, isNew: false };
           }
 
           // Registrar novo device
+          console.log("[registerDevice] Creating new device:", input.udid);
           await createDevice({
             udid: input.udid,
-            name: input.name || `Device ${input.udid.substring(0, 8)}`,
+            name: input.name || `iOS Device ${input.udid.substring(0, 4)}`,
             userId: pkg.ownerId,
             packageId: pkg.id,
+            status: "online",
+            lastSeen: new Date()
           });
 
           const newDevice = await getDeviceByUdid(input.udid);
           return { success: true, deviceId: newDevice?.id, isNew: true };
         } catch (error) {
+          console.error("[registerDevice] Error:", error);
           throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Erro ao registrar device" });
         }
       }),
@@ -82,12 +93,14 @@ export const appRouter = router({
       }))
       .mutation(async ({ input }) => {
         try {
+          console.log("[validateKey] Request:", input);
           const db = await getDb();
           if (!db) throw new Error("DB not available");
 
           // 1. Verificar se o token é válido
           const pkg = await getPackageByToken(input.token);
           if (!pkg) {
+            console.error("[validateKey] Invalid token:", input.token);
             return { valid: false, message: "Token de pacote inválido" };
           }
 
@@ -96,33 +109,47 @@ export const appRouter = router({
           const key = keyResult[0];
 
           if (!key) {
+            console.warn("[validateKey] Key not found:", input.key);
             return { valid: false, message: "Chave não encontrada" };
           }
 
           if (key.packageId !== pkg.id) {
+            console.warn("[validateKey] Key package mismatch. Key pkg:", key.packageId, "Expected pkg:", pkg.id);
             return { valid: false, message: "Chave não pertence a este pacote" };
           }
 
           if (key.status === "revoked") return { valid: false, message: "Chave revogada" };
           if (key.status === "paused") return { valid: false, message: "Chave pausada" };
-          if (key.status === "expired" || (key.expiresAt && key.expiresAt < new Date())) {
+          
+          const now = new Date();
+          if (key.status === "expired" || (key.expiresAt && key.expiresAt < now)) {
+            console.warn("[validateKey] Key expired:", input.key);
             return { valid: false, message: "Chave expirada" };
           }
 
           // 3. Verificar dispositivo
-          const device = await getDeviceByUdid(input.udid);
+          let device = await getDeviceByUdid(input.udid);
           if (!device) {
-            return { valid: false, message: "Dispositivo não registrado" };
+            console.log("[validateKey] Device not found, registering automatically:", input.udid);
+            // Auto-registro se não existir durante a validação da key
+            await createDevice({
+              udid: input.udid,
+              name: `iOS Device ${input.udid.substring(0, 4)}`,
+              userId: pkg.ownerId,
+              packageId: pkg.id,
+              status: "online",
+              lastSeen: new Date()
+            });
+            device = await getDeviceByUdid(input.udid);
           }
 
-          if (device.status === "banned") {
+          if (device && device.status === "banned") {
             return { valid: false, message: "Dispositivo banido" };
           }
 
           // 4. Vincular ou Validar dispositivo na key
           if (!key.deviceId) {
             // Primeira ativação da key
-            const now = new Date();
             const expiresAt = new Date(now);
             if (key.duration === "day") expiresAt.setDate(expiresAt.getDate() + 1);
             else if (key.duration === "week") expiresAt.setDate(expiresAt.getDate() + 7);
@@ -131,19 +158,26 @@ export const appRouter = router({
 
             await db.update(keys).set({
               status: "active",
-              deviceId: device.id,
+              deviceId: device?.id,
               activatedAt: now,
               expiresAt: expiresAt
             }).where(eq(keys.id, key.id));
             
+            console.log("[validateKey] Key activated for device:", device?.id);
             return { 
               valid: true, 
               message: "Chave ativada com sucesso!",
               expiresAt: expiresAt.toISOString(),
               duration: key.duration
             };
-          } else if (key.deviceId !== device.id) {
+          } else if (key.deviceId !== device?.id) {
+            console.warn("[validateKey] Key already linked to another device. Key device:", key.deviceId, "Current device:", device?.id);
             return { valid: false, message: "Chave já vinculada a outro dispositivo" };
+          }
+
+          // Atualizar lastSeen do device
+          if (device) {
+            await updateDevice(device.id, { lastSeen: new Date(), status: "online" });
           }
 
           return { 
