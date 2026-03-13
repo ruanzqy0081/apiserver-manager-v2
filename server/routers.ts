@@ -11,7 +11,9 @@ import { vipUsersRouter } from "./routers/vipUsers";
 import { dylibRouter } from "./routers/dylib";
 import { notificationsRouter } from "./routers/notifications";
 import { dashboardRouter } from "./routers/dashboard";
-import { createDevice, getDeviceByUdid, updateDevice, getPackageByToken } from "./db";
+import { createDevice, getDeviceByUdid, updateDevice, getPackageByToken, getDb } from "./db";
+import { keys } from "../drizzle/schema";
+import { eq } from "drizzle-orm";
 
 export const appRouter = router({
   system: systemRouter,
@@ -80,17 +82,79 @@ export const appRouter = router({
       }))
       .mutation(async ({ input }) => {
         try {
-          // Verificar se o token é válido
+          const db = await getDb();
+          if (!db) throw new Error("DB not available");
+
+          // 1. Verificar se o token é válido
           const pkg = await getPackageByToken(input.token);
           if (!pkg) {
-            throw new TRPCError({ code: "UNAUTHORIZED", message: "Token inválido" });
+            return { valid: false, message: "Token de pacote inválido" };
           }
 
-          // TODO: Implementar validação de key
-          // Por enquanto, retornar sucesso
-          return { valid: true, message: "Key válida" };
+          // 2. Buscar a key
+          const keyResult = await db.select().from(keys).where(eq(keys.keyValue, input.key)).limit(1);
+          const key = keyResult[0];
+
+          if (!key) {
+            return { valid: false, message: "Chave não encontrada" };
+          }
+
+          if (key.packageId !== pkg.id) {
+            return { valid: false, message: "Chave não pertence a este pacote" };
+          }
+
+          if (key.status === "revoked") return { valid: false, message: "Chave revogada" };
+          if (key.status === "paused") return { valid: false, message: "Chave pausada" };
+          if (key.status === "expired" || (key.expiresAt && key.expiresAt < new Date())) {
+            return { valid: false, message: "Chave expirada" };
+          }
+
+          // 3. Verificar dispositivo
+          const device = await getDeviceByUdid(input.udid);
+          if (!device) {
+            return { valid: false, message: "Dispositivo não registrado" };
+          }
+
+          if (device.status === "banned") {
+            return { valid: false, message: "Dispositivo banido" };
+          }
+
+          // 4. Vincular ou Validar dispositivo na key
+          if (!key.deviceId) {
+            // Primeira ativação da key
+            const now = new Date();
+            const expiresAt = new Date(now);
+            if (key.duration === "day") expiresAt.setDate(expiresAt.getDate() + 1);
+            else if (key.duration === "week") expiresAt.setDate(expiresAt.getDate() + 7);
+            else if (key.duration === "month") expiresAt.setMonth(expiresAt.getMonth() + 1);
+            else if (key.duration === "year") expiresAt.setFullYear(expiresAt.getFullYear() + 1);
+
+            await db.update(keys).set({
+              status: "active",
+              deviceId: device.id,
+              activatedAt: now,
+              expiresAt: expiresAt
+            }).where(eq(keys.id, key.id));
+            
+            return { 
+              valid: true, 
+              message: "Chave ativada com sucesso!",
+              expiresAt: expiresAt.toISOString(),
+              duration: key.duration
+            };
+          } else if (key.deviceId !== device.id) {
+            return { valid: false, message: "Chave já vinculada a outro dispositivo" };
+          }
+
+          return { 
+            valid: true, 
+            message: "Acesso validado",
+            expiresAt: key.expiresAt?.toISOString(),
+            duration: key.duration
+          };
         } catch (error) {
-          return { valid: false, message: "Erro ao validar key" };
+          console.error("[validateKey] Error:", error);
+          return { valid: false, message: "Erro interno no servidor" };
         }
       }),
   }),

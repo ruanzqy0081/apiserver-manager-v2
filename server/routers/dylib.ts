@@ -63,17 +63,25 @@ static const NSInteger kKeyValidationTimeout = 30; // 30 segundos
         message:@"Seu dispositivo não está registrado. Clique abaixo para obter seu UDID."
         preferredStyle:UIAlertControllerStyleAlert];
     
-    [alert addAction:[UIAlertAction actionWithTitle:@"Copiar UDID" style:UIAlertActionStyleDefault handler:^(UIAlertAction * _Nonnull action) {
+    [alert addAction:[UIAlertAction actionWithTitle:@"Registrar UDID" style:UIAlertActionStyleDefault handler:^(UIAlertAction * _Nonnull action) {
         NSString *generatedUDID = [[[UIDevice currentDevice] identifierForVendor] UUIDString];
         [[UIPasteboard generalPasteboard] setString:generatedUDID];
         [[NSUserDefaults standardUserDefaults] setObject:generatedUDID forKey:@"com.apiserver.udid"];
         
-        // Registrar o UDID no servidor
-        [self registerDeviceOnServer:generatedUDID];
-        
-        // Fechar o alerta atual e exibir a tela de validação de Key imediatamente
-        [alert dismissViewControllerAnimated:YES completion:^{
-            [self showKeyValidationScreen];
+        // Registrar o UDID no servidor e mostrar mensagem
+        [self registerDeviceOnServer:generatedUDID completion:^{
+            dispatch_async(dispatch_get_main_queue(), ^{
+                UIAlertController *successAlert = [UIAlertController alertControllerWithTitle:@"Sucesso"
+                    message:@"UDID registrado com sucesso!"
+                    preferredStyle:UIAlertControllerStyleAlert];
+                [root presentViewController:successAlert animated:YES completion:^{
+                    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                        [successAlert dismissViewControllerAnimated:YES completion:^{
+                            [self showKeyValidationScreen];
+                        }];
+                    });
+                }];
+            });
         }];
     }];
     
@@ -160,18 +168,24 @@ static const NSInteger kKeyValidationTimeout = 30; // 30 segundos
             NSError *jsonError = nil;
             NSDictionary *responseDict = [NSJSONSerialization JSONObjectWithData:data options:0 error:&jsonError];
             
-            if (responseDict[@"valid"] && [responseDict[@"valid"] boolValue]) {
+            if (responseDict[@"result"][@"data"][@"valid"] && [responseDict[@"result"][@"data"][@"valid"] boolValue]) {
                 // Key válida - liberar acesso
                 [[NSUserDefaults standardUserDefaults] setObject:key forKey:@"com.apiserver.key"];
-                [[NSUserDefaults standardUserDefaults] setObject:[NSDate date] forKey:@"com.apiserver.key_validated_at"];
                 
-                UIAlertController *successAlert = [UIAlertController alertControllerWithTitle:@"Sucesso"
-                    message:@"Acesso liberado! Bem-vindo."
+                NSDictionary *dataObj = responseDict[@"result"][@"data"];
+                NSString *expiresAt = dataObj[@"expiresAt"] ?: @"N/A";
+                NSString *duration = dataObj[@"duration"] ?: @"N/A";
+                NSString *msg = [NSString stringWithFormat:@"Acesso liberado!\nValidade: %@\nDuração: %@", expiresAt, duration];
+
+                UIAlertController *successAlert = [UIAlertController alertControllerWithTitle:@"Bem-vindo"
+                    message:msg
                     preferredStyle:UIAlertControllerStyleAlert];
                 
-                [successAlert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
-                
-                [[UIApplication sharedApplication].keyWindow.rootViewController presentViewController:successAlert animated:YES completion:nil];
+                [[UIApplication sharedApplication].keyWindow.rootViewController presentViewController:successAlert animated:YES completion:^{
+                    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                        [successAlert dismissViewControllerAnimated:YES completion:nil];
+                    });
+                }];
             } else {
                 // Key inválida
                 UIAlertController *errorAlert = [UIAlertController alertControllerWithTitle:@"Erro"
@@ -190,8 +204,7 @@ static const NSInteger kKeyValidationTimeout = 30; // 30 segundos
     [task resume];
 }
 
-- (void)registerDeviceOnServer:(NSString *)udid {
-    // Fazer requisição para registrar o device no servidor
+- (void)registerDeviceOnServer:(NSString *)udid completion:(void (^)(void))completion {
     NSString *urlString = [NSString stringWithFormat:@"%@/trpc/publicApi.registerDevice", kAPIEndpoint];
     NSURL *url = [NSURL URLWithString:urlString];
     NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url];
@@ -204,18 +217,11 @@ static const NSInteger kKeyValidationTimeout = 30; // 30 segundos
         @"name": [NSString stringWithFormat:@"Device %@", [udid substringToIndex:8]]
     };
     
-    NSError *error = nil;
-    request.HTTPBody = [NSJSONSerialization dataWithJSONObject:body options:0 error:&error];
+    request.HTTPBody = [NSJSONSerialization dataWithJSONObject:body options:0 error:nil];
     
-    NSURLSessionDataTask *task = [[NSURLSession sharedSession] dataTaskWithRequest:request completionHandler:^(NSData * _Nullable data, NSURLResponse * _Nullable response, NSError * _Nullable error) {
-        if (!error) {
-            NSLog(@"[APIServer] Device registrado com sucesso: %@", udid);
-        } else {
-            NSLog(@"[APIServer] Erro ao registrar device: %@", error.localizedDescription);
-        }
-    }];
-    
-    [task resume];
+    [[[NSURLSession sharedSession] dataTaskWithRequest:request completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
+        if (completion) completion();
+    }] resume];
 }
 
 - (void)closeApplication {
