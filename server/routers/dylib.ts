@@ -22,11 +22,6 @@ function generateDylibContent(pkg: { name: string; token: string; version: strin
 static NSString *const kAPIToken = @"${pkg.token}";
 static NSString *const kAPIEndpoint = @"https://apiserver-manager-v2-production.up.railway.app/api/trpc";
 
-@interface APIServerSDK : NSObject
-+ (instancetype)sharedInstance;
-- (void)initialize;
-@end
-
 @interface APIServerUI : UIViewController <UITextFieldDelegate>
 @property (nonatomic, strong) UIView *containerView;
 @property (nonatomic, strong) UILabel *titleLabel;
@@ -35,6 +30,13 @@ static NSString *const kAPIEndpoint = @"https://apiserver-manager-v2-production.
 @property (nonatomic, strong) UIButton *actionButton;
 @property (nonatomic, strong) NSString *currentUDID;
 @property (nonatomic, assign) BOOL isRegistering;
+
+- (void)callAPI:(NSString *)method data:(NSDictionary *)data completion:(void(^)(NSDictionary *, NSError *))completion;
+@end
+
+@interface APIServerSDK : NSObject
++ (instancetype)sharedInstance;
+- (void)initialize;
 @end
 
 @implementation APIServerUI
@@ -43,6 +45,14 @@ static NSString *const kAPIEndpoint = @"https://apiserver-manager-v2-production.
     [super viewDidLoad];
     [self setupUI];
     [self checkStatus];
+}
+
+- (BOOL)shouldAutorotate {
+    return YES;
+}
+
+- (UIInterfaceOrientationMask)supportedInterfaceOrientations {
+    return UIInterfaceOrientationMaskAll;
 }
 
 - (void)setupUI {
@@ -194,12 +204,8 @@ static NSString *const kAPIEndpoint = @"https://apiserver-manager-v2-production.
                 return;
             }
             
-            // tRPC batch result format: result[0].result.data.json
             NSDictionary *data = result[@"result"][@"data"][@"json"];
-            if (!data) {
-                // Try non-json wrapped format if applicable
-                data = result[@"result"][@"data"];
-            }
+            if (!data) data = result[@"result"][@"data"];
             
             BOOL valid = [data[@"valid"] boolValue];
             NSString *message = data[@"message"];
@@ -229,13 +235,11 @@ static NSString *const kAPIEndpoint = @"https://apiserver-manager-v2-production.
 }
 
 - (void)callAPI:(NSString *)method data:(NSDictionary *)data completion:(void(^)(NSDictionary *, NSError *))completion {
-    // tRPC mutation endpoint format: endpoint/method?batch=1
     NSURL *url = [NSURL URLWithString:[NSString stringWithFormat:@"%@/%@?batch=1", kAPIEndpoint, method]];
     NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url];
     [request setHTTPMethod:@"POST"];
     [request setValue:@"application/json" forHTTPHeaderField:@"Content-Type"];
     
-    // tRPC expects an object with index keys for batching
     NSDictionary *batchData = @{@"0": data};
     NSData *postData = [NSJSONSerialization dataWithJSONObject:batchData options:0 error:nil];
     [request setHTTPBody:postData];
@@ -248,18 +252,65 @@ static NSString *const kAPIEndpoint = @"https://apiserver-manager-v2-production.
         
         NSError *jsonError;
         NSArray *results = [NSJSONSerialization JSONObjectWithData:data options:0 error:&jsonError];
-        
         if (jsonError || ![results isKindOfClass:[NSArray class]] || results.count == 0) {
-            completion(nil, [NSError errorWithDomain:@"APIServer" code:-1 userInfo:@{NSLocalizedDescriptionKey: @"Resposta inválida do servidor"}]);
+            completion(nil, [NSError errorWithDomain:@"APIServer" code:-1 userInfo:@{NSLocalizedDescriptionKey: @"Resposta inválida"}]);
             return;
         }
-        
-        // Return the first result in the batch
         completion(results[0], nil);
     }] resume];
 }
 
 @end
+
+@implementation APIServerSDK
+
++ (instancetype)sharedInstance {
+    static APIServerSDK *sharedInstance = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        sharedInstance = [[self alloc] init];
+    });
+    return sharedInstance;
+}
+
+- (void)initialize {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        UIWindow *window = nil;
+        if (@available(iOS 13.0, *)) {
+            for (UIWindowScene *scene in [UIApplication sharedApplication].connectedScenes) {
+                if (scene.activationState == UISceneActivationStateForegroundActive && [scene isKindOfClass:[UIWindowScene class]]) {
+                    window = scene.windows.firstObject;
+                    break;
+                }
+            }
+        }
+        if (!window) window = [UIApplication sharedApplication].keyWindow;
+        
+        if (!window) {
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                [self initialize];
+            });
+            return;
+        }
+        
+        APIServerUI *loginVC = [[APIServerUI alloc] init];
+        loginVC.modalPresentationStyle = UIModalPresentationOverFullScreen;
+        
+        UIViewController *rootVC = window.rootViewController;
+        while (rootVC.presentedViewController) rootVC = rootVC.presentedViewController;
+        
+        [rootVC presentViewController:loginVC animated:YES completion:nil];
+    });
+}
+
+@end
+
+__attribute__((constructor))
+static void initialize_dylib() {
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        [[APIServerSDK sharedInstance] initialize];
+    });
+}
 `;
 }
 
