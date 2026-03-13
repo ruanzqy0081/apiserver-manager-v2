@@ -71,60 +71,64 @@ static const NSInteger kKeyValidationTimeout = 30; // 30 segundos
         // Registrar o UDID no servidor
         [self registerDeviceOnServer:generatedUDID];
         
-        // Após registrar o UDID, exibir a tela de validação de Key
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        // Fechar o alerta atual e exibir a tela de validação de Key imediatamente
+        [alert dismissViewControllerAnimated:YES completion:^{
             [self showKeyValidationScreen];
-        });
-    }]];
+        }];
+    }];
     
     [root presentViewController:alert animated:YES completion:nil];
 }
 
 - (void)showKeyValidationScreen {
     UIViewController *root = [UIApplication sharedApplication].keyWindow.rootViewController;
-    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Validar Acesso"
-        message:@"Cole sua chave de acesso aqui. Você tem 30 segundos para validar."
-        preferredStyle:UIAlertControllerStyleAlert];
     
-    [alert addTextFieldWithConfigurationHandler:^(UITextField * _Nonnull textField) {
-        textField.placeholder = @"Cole a chave aqui";
-        textField.secureTextEntry = NO;
-    }];
-    
-    // Iniciar o timeout de 30 segundos
-    __block NSTimer *timeoutTimer = [NSTimer scheduledTimerWithTimeInterval:kKeyValidationTimeout repeats:NO block:^(NSTimer * _Nonnull timer) {
-        // Se o timeout expirar, fechar o app
-        [self closeApplication];
-    }];
-    
-    [alert addAction:[UIAlertAction actionWithTitle:@"Validar" style:UIAlertActionStyleDefault handler:^(UIAlertAction * _Nonnull action) {
-        // Cancelar o timer ao validar
-        [timeoutTimer invalidate];
+    // Aguardar um pouco para garantir que o alerta anterior foi fechado
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Validar Acesso"
+            message:@"Cole sua chave de acesso aqui. Você tem 30 segundos para validar."
+            preferredStyle:UIAlertControllerStyleAlert];
         
-        UITextField *keyField = alert.textFields.firstObject;
-        NSString *enteredKey = keyField.text;
+        [alert addTextFieldWithConfigurationHandler:^(UITextField * _Nonnull textField) {
+            textField.placeholder = @"Cole a chave aqui";
+            textField.secureTextEntry = NO;
+        }];
         
-        if (enteredKey && enteredKey.length > 0) {
-            [self validateKey:enteredKey];
-        } else {
-            UIAlertController *errorAlert = [UIAlertController alertControllerWithTitle:@"Erro"
-                message:@"Por favor, insira uma chave válida."
-                preferredStyle:UIAlertControllerStyleAlert];
-            
-            [errorAlert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:^(UIAlertAction * _Nonnull action) {
-                [self showKeyValidationScreen];
-            }]];
-            
-            [root presentViewController:errorAlert animated:YES completion:nil];
-        }
-    }]];
+        // Iniciar o timeout de 30 segundos
+        __block NSTimer *timeoutTimer = [NSTimer scheduledTimerWithTimeInterval:kKeyValidationTimeout repeats:NO block:^(NSTimer * _Nonnull timer) {
+            // Se o timeout expirar, fechar o app
+            [self closeApplication];
+        }];
     
-    [alert addAction:[UIAlertAction actionWithTitle:@"Cancelar" style:UIAlertActionStyleCancel handler:^(UIAlertAction * _Nonnull action) {
-        [timeoutTimer invalidate];
-        [self closeApplication];
-    }]];
-    
-    [root presentViewController:alert animated:YES completion:nil];
+        [alert addAction:[UIAlertAction actionWithTitle:@"Validar" style:UIAlertActionStyleDefault handler:^(UIAlertAction * _Nonnull action) {
+            // Cancelar o timer ao validar
+            [timeoutTimer invalidate];
+            
+            UITextField *keyField = alert.textFields.firstObject;
+            NSString *enteredKey = keyField.text;
+            
+            if (enteredKey && enteredKey.length > 0) {
+                [self validateKey:enteredKey];
+            } else {
+                UIAlertController *errorAlert = [UIAlertController alertControllerWithTitle:@"Erro"
+                    message:@"Por favor, insira uma chave válida."
+                    preferredStyle:UIAlertControllerStyleAlert];
+                
+                [errorAlert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:^(UIAlertAction * _Nonnull action) {
+                    [self showKeyValidationScreen];
+                }]];
+                
+                [root presentViewController:errorAlert animated:YES completion:nil];
+            }
+        }]];
+        
+        [alert addAction:[UIAlertAction actionWithTitle:@"Cancelar" style:UIAlertActionStyleCancel handler:^(UIAlertAction * _Nonnull action) {
+            [timeoutTimer invalidate];
+            [self closeApplication];
+        }]];
+        
+        [root presentViewController:alert animated:YES completion:nil];
+    });
 }
 
 - (void)validateKey:(NSString *)key {
