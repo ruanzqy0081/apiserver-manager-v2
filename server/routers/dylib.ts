@@ -247,36 +247,62 @@ static NSString *const kAPIEndpoint = @"https://apiserver-manager-v2-production.
 
 export const dylibRouter = router({
   generate: protectedProcedure
-    .input(z.object({ packageId: z.string() }))
+    .input(z.object({
+      packageId: z.string(),
+    }))
     .mutation(async ({ input, ctx }) => {
       const pkg = await getPackageById(input.packageId);
-      if (!pkg || pkg.ownerId !== ctx.user.id) {
-        throw new TRPCError({ code: "UNAUTHORIZED", message: "Pacote não encontrado" });
+      if (!pkg) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Pacote não encontrado" });
       }
 
       const content = generateDylibContent({
         name: pkg.name,
         token: pkg.token,
-        version: pkg.version || "1.0.0"
+        version: pkg.version,
       });
 
-      const fileName = `lib${nanoid(8)}.dylib.ts`;
-      const publicPath = path.join(process.cwd(), "client", "dist", fileName);
+      const buildId = nanoid();
+      const fileName = \`\${pkg.name}_v\${pkg.version}_\${buildId.substring(0, 6)}.dylib\`;
+      const publicDir = path.join(process.cwd(), "public", "builds");
       
-      await fs.writeFile(publicPath, content);
-      
-      await logActivity({
-        userId: ctx.user.id,
-        action: "generate_dylib",
-        details: `Gerou dylib para o pacote ${pkg.name}`
-      });
+      try {
+        await fs.mkdir(publicDir, { recursive: true });
+        const filePath = path.join(publicDir, fileName);
+        await fs.writeFile(filePath, content);
 
-      return { url: `/${fileName}` };
+        await createDylibBuild({
+          id: buildId,
+          packageId: pkg.id,
+          ownerId: ctx.user.id,
+          fileName,
+          status: "completed",
+        });
+
+        await logActivity({
+          userId: ctx.user.id,
+          action: "generate_dylib",
+          details: \`Gerou dylib para o pacote \${pkg.name}\`,
+        });
+
+        return {
+          success: true,
+          downloadUrl: \`/builds/\${fileName}\`,
+        };
+      } catch (error) {
+        console.error("Erro ao gerar dylib:", error);
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Erro ao gerar arquivo dylib" });
+      }
     }),
 
   getBuilds: protectedProcedure
-    .input(z.object({ packageId: z.string() }))
-    .query(async ({ input }) => {
-      return await getDylibBuildsByPackage(input.packageId);
-    })
+    .input(z.object({
+      packageId: z.string().optional(),
+    }))
+    .query(async ({ input, ctx }) => {
+      if (input.packageId) {
+        return getDylibBuildsByPackage(input.packageId);
+      }
+      return getDylibBuildsByOwner(ctx.user.id);
+    }),
 });
