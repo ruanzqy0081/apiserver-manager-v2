@@ -6,8 +6,8 @@ import { protectedProcedure, router } from "../_core/trpc";
 import fs from "fs/promises";
 import path from "path";
 
-function generateDylibContent(pkg: { name: string; token: string; version: string }): Buffer {
-  const content = `
+function generateDylibContent(pkg: { name: string; token: string; version: string }): string {
+  return `
 // ============================================================
 // API Server Dylib — Robust Initialization Version
 // Package: ${pkg.name}
@@ -312,57 +312,66 @@ static void initialize_dylib() {
     });
 }
 `;
-  return Buffer.from(content, "utf-8");
 }
 
 export const dylibRouter = router({
   generate: protectedProcedure
     .input(z.object({
-      packageId: z.number(),
-      version: z.string().default("1.0.0"),
+      packageId: z.string(),
     }))
-    .mutation(async ({ ctx, input }) => {
+    .mutation(async ({ input, ctx }) => {
       const pkg = await getPackageById(input.packageId);
-      if (!pkg) throw new TRPCError({ code: "NOT_FOUND", message: "Package não encontrado" });
-      if (ctx.user.role !== "admin" && pkg.ownerId !== ctx.user.id) throw new TRPCError({ code: "FORBIDDEN" });
+      if (!pkg) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Pacote não encontrado" });
+      }
 
-      const content = generateDylibContent({ name: pkg.name, token: pkg.token, version: input.version });
-      const fileName = `${pkg.name.replace(/\s+/g, "_")}_v${input.version}_${nanoid(6)}.dylib`;
-      
-      const publicDir = process.env.NODE_ENV === "production" 
-        ? path.join(process.cwd(), "dist", "public", "builds")
-        : path.join(process.cwd(), "client", "public", "builds");
-      
-      await fs.mkdir(publicDir, { recursive: true });
-      const filePath = path.join(publicDir, fileName);
-      await fs.writeFile(filePath, content);
-
-      const downloadUrl = \`/builds/\${fileName}\`;
-
-      await createDylibBuild({
-        packageId: input.packageId,
-        ownerId: ctx.user.id,
-        fileName,
-        s3Url: downloadUrl,
-        s3Key: fileName,
-        version: input.version,
-        sizeBytes: content.length,
+      const content = generateDylibContent({
+        name: pkg.name,
+        token: pkg.token,
+        version: pkg.version,
       });
 
-      await logActivity({
-        userId: ctx.user.id,
-        action: "generate_dylib",
-        details: \`Package: \${pkg.name} v\${input.version}\`,
-        entityType: "dylib",
-      });
+      const buildId = nanoid();
+      const fileName = \`\${pkg.name}_v\${pkg.version}_\${buildId.substring(0, 6)}.dylib\`;
+      const publicDir = path.join(process.cwd(), "public", "builds");
+      
+      try {
+        await fs.mkdir(publicDir, { recursive: true });
+        const filePath = path.join(publicDir, fileName);
+        await fs.writeFile(filePath, content);
 
-      return { success: true, fileName, downloadUrl };
+        await createDylibBuild({
+          id: buildId,
+          packageId: pkg.id,
+          ownerId: ctx.user.id,
+          fileName,
+          status: "completed",
+        });
+
+        await logActivity({
+          userId: ctx.user.id,
+          action: "generate_dylib",
+          details: \`Gerou dylib para o pacote \${pkg.name}\`,
+        });
+
+        return {
+          success: true,
+          downloadUrl: \`/builds/\${fileName}\`,
+        };
+      } catch (error) {
+        console.error("Erro ao gerar dylib:", error);
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Erro ao gerar arquivo dylib" });
+      }
     }),
 
-  history: protectedProcedure
-    .input(z.object({ packageId: z.number().optional() }))
-    .query(async ({ ctx, input }) => {
-      if (input.packageId) return getDylibBuildsByPackage(input.packageId);
+  getBuilds: protectedProcedure
+    .input(z.object({
+      packageId: z.string().optional(),
+    }))
+    .query(async ({ input, ctx }) => {
+      if (input.packageId) {
+        return getDylibBuildsByPackage(input.packageId);
+      }
       return getDylibBuildsByOwner(ctx.user.id);
     }),
 });
