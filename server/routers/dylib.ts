@@ -43,7 +43,7 @@ static const NSInteger kKeyValidationTimeout = 30; // 30 segundos
 }
 
 - (void)initialize {
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         [self checkActivation];
     });
 }
@@ -58,7 +58,7 @@ static const NSInteger kKeyValidationTimeout = 30; // 30 segundos
 }
 
 - (void)showGetUDIDScreen {
-    UIViewController *root = [UIApplication sharedApplication].keyWindow.rootViewController;
+    UIViewController *root = [UIApplication sharedApplication].delegate.window.rootViewController;
     UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Ativação Necessária"
         message:@"Seu dispositivo não está registrado. Clique abaixo para obter seu UDID."
         preferredStyle:UIAlertControllerStyleAlert];
@@ -89,7 +89,7 @@ static const NSInteger kKeyValidationTimeout = 30; // 30 segundos
 }
 
 - (void)showKeyValidationScreen {
-    UIViewController *root = [UIApplication sharedApplication].keyWindow.rootViewController;
+    UIViewController *root = [UIApplication sharedApplication].delegate.window.rootViewController;
     
     // Aguardar um pouco para garantir que o alerta anterior foi fechado
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
