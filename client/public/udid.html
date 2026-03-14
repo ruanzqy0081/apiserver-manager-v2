@@ -72,42 +72,53 @@
             color: white;
             padding: 16px 32px;
             border-radius: 16px;
-            font-weight: 600;
-            font-size: 16px;
             text-decoration: none;
+            font-weight: 700;
+            font-size: 17px;
             transition: all 0.2s ease;
             width: 100%;
             box-sizing: border-box;
-            border: none;
-            cursor: pointer;
-            box-shadow: 0 4px 6px -1px rgba(59, 130, 246, 0.2);
+            box-shadow: 0 10px 15px -3px rgba(59, 130, 246, 0.3);
         }
         .btn:hover {
             background-color: var(--primary-hover);
-            transform: translateY(-1px);
-            box-shadow: 0 10px 15px -3px rgba(59, 130, 246, 0.3);
+            transform: translateY(-2px);
+            box-shadow: 0 20px 25px -5px rgba(59, 130, 246, 0.4);
         }
         .btn:active {
             transform: translateY(0);
         }
-        .features {
+        .steps {
             margin-top: 32px;
-            padding-top: 32px;
-            border-top: 1px solid rgba(255, 255, 255, 0.05);
-            display: grid;
-            gap: 16px;
             text-align: left;
+            background: rgba(255, 255, 255, 0.03);
+            padding: 20px;
+            border-radius: 18px;
         }
-        .feature-item {
+        .step {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 12px;
+            font-size: 14px;
+            color: var(--text-muted);
+        }
+        .step:last-child {
+            margin-bottom: 0;
+        }
+        .step-num {
+            background: var(--primary-color);
+            color: white;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
             display: flex;
             align-items: center;
-            gap: 12px;
-            color: var(--text-muted);
-            font-size: 14px;
-        }
-        .feature-icon {
-            color: var(--success-color);
+            justify-content: center;
+            font-size: 11px;
+            font-weight: bold;
+            margin-right: 12px;
             flex-shrink: 0;
+            margin-top: 2px;
         }
     </style>
 </head>
@@ -115,28 +126,26 @@
     <div class="container">
         <div class="icon-box">
             <svg viewBox="0 0 24 24">
-                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
+                <path d="M17,1H7A2,2 0 0,0 5,3V21A2,2 0 0,0 7,23H17A2,2 0 0,0 19,21V3A2,2 0 0,0 17,1M17,19H7V5H17V19M16,13H13V8H11V13H8L12,17L16,13Z" />
             </svg>
         </div>
         <h1>Instalar Perfil</h1>
-        <p>Clique no botão abaixo para baixar o perfil de configuração e obter o UDID do seu dispositivo.</p>
+        <p>Para extrair o UDID do seu dispositivo e registrá-lo no sistema, clique no botão abaixo e siga as instruções.</p>
         
-        <a href="udid.mobileconfig" class="btn">
-            Baixar Perfil
-        </a>
+        <a href="/install" class="btn">Instalar Perfil</a>
 
-        <div class="features">
-            <div class="feature-item">
-                <svg class="feature-icon" width="16" height="16" fill="currentColor" viewBox="0 0 20 20">
-                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
-                </svg>
-                <span>Seguro e verificado pela Apple</span>
+        <div class="steps">
+            <div class="step">
+                <div class="step-num">1</div>
+                <div>Clique em "Permitir" quando solicitado para baixar o perfil.</div>
             </div>
-            <div class="feature-item">
-                <svg class="feature-icon" width="16" height="16" fill="currentColor" viewBox="0 0 20 20">
-                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
-                </svg>
-                <span>Extração automática de UDID</span>
+            <div class="step">
+                <div class="step-num">2</div>
+                <div>Vá em <b>Ajustes > Perfil Baixado</b>.</div>
+            </div>
+            <div class="step">
+                <div class="step-num">3</div>
+                <div>Clique em <b>Instalar</b> e confirme sua senha.</div>
             </div>
         </div>
     </div>
