@@ -57,7 +57,6 @@ export async function setupVite(app: Express, server: Server) {
         `src="/src/main.tsx"`,
         `src="/src/main.tsx?v=${nanoid()}"`
       );
-
       const page = await vite.transformIndexHtml(url, template);
       res.status(200).set({ "Content-Type": "text/html" }).end(page);
     } catch (e) {
@@ -68,26 +67,9 @@ export async function setupVite(app: Express, server: Server) {
 }
 
 export function serveStatic(app: Express) {
-  const distPath =
-    process.env.NODE_ENV === "development"
-      ? path.resolve(import.meta.dirname, "../..", "dist", "public")
-      : path.resolve(import.meta.dirname, "public");
-
-  if (!fs.existsSync(distPath)) {
-    console.error(
-      `Could not find the build directory: ${distPath}, make sure to build the client first`
-    );
-  }
-
-  // Servir arquivos de UDID com prioridade na produção
-  app.get("/udid.html", (req, res, next) => {
-    const filePath = path.resolve(distPath, "udid.html");
-    if (fs.existsSync(filePath)) {
-      return res.sendFile(filePath);
-    }
-    next();
-  });
-
+  const distPath = path.resolve(import.meta.dirname, "../../dist/public");
+  
+  // Rota específica para o mobileconfig com MIME type correto em produção
   app.get("/udid.mobileconfig", (req, res, next) => {
     const filePath = path.resolve(distPath, "udid.mobileconfig");
     if (fs.existsSync(filePath)) {
@@ -99,7 +81,6 @@ export function serveStatic(app: Express) {
 
   app.use(express.static(distPath));
 
-  // fall through to index.html if the file doesn't exist
   app.use("*", (_req, res) => {
     res.sendFile(path.resolve(distPath, "index.html"));
   });
