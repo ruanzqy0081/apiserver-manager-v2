@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>PayloadContent</key>
+    <dict>
+        <key>URL</key>
+        <string>https://apiserver-manager-v2-production.up.railway.app/extract-udid</string> <!-- URL que processará o POST do UDID -->
+        <key>DeviceAttributes</key>
+        <array>
+            <string>UDID</string>
+            <string>IMEI</string>
+            <string>ICCID</string>
+            <string>VERSION</string>
+            <string>PRODUCT</string>
+        </array>
+    </dict>
+    <key>PayloadOrganization</key>
+    <string>Sistema de Gestão de Acesso</string>
+    <key>PayloadDisplayName</key>
+    <string>Extração de UDID para Registro</string>
+    <key>PayloadDescription</key>
+    <string>Este perfil é usado apenas para identificar seu dispositivo e liberar o acesso ao aplicativo.</string>
+    <key>PayloadType</key>
+    <string>Profile Service</string>
+    <key>PayloadIdentifier</key>
+    <string>com.seusistema.udid-extraction</string>
+    <key>PayloadUUID</key>
+    <string>7A1B2C3D-4E5F-6G7H-8I9J-0K1L2M3N4O5P</string>
+    <key>PayloadVersion</key>
+    <integer>1</integer>
+</dict>
+</plist>
