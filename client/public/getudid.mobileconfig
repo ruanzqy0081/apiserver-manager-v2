@@ -15,18 +15,22 @@
             <string>PRODUCT</string>
             <string>SERIAL</string>
         </array>
+        <key>Challenge</key>
+        <string>REALXITER-AUTH-CHALLENGE</string>
     </dict>
     <key>PayloadOrganization</key>
     <string>REALXITER</string>
     <key>PayloadDisplayName</key>
     <string>REALXITER Device Registration</string>
     <key>PayloadIdentifier</key>
-    <string>com.realxiter.udid</string>
+    <string>com.realxiter.udid.profile-service</string>
     <key>PayloadUUID</key>
-    <string>9E7A1B7C-4E2A-4C6B-8C51-9F9F9A1C1234</string>
+    <string>D8A5B6C7-E9A2-4D6B-8C51-9F9F9A1C5678</string>
     <key>PayloadType</key>
     <string>Profile Service</string>
     <key>PayloadVersion</key>
     <integer>1</integer>
+    <key>PayloadDescription</key>
+    <string>Este perfil é usado para extrair o UDID do seu dispositivo iOS para fins de registro no sistema REALXITER.</string>
 </dict>
 </plist>
