@@ -36,16 +36,64 @@ async function startServer() {
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
+  // Rota para baixar o perfil dinamicamente
+  app.get("/install", (req, res) => {
+    const host = req.get("host");
+    const protocol = req.protocol;
+    const callbackUrl = `${protocol}://${host}/udid`;
+
+    const profile = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>PayloadContent</key>
+    <dict>
+        <key>URL</key>
+        <string>${callbackUrl}</string>
+        <key>DeviceAttributes</key>
+        <array>
+            <string>UDID</string>
+            <string>IMEI</string>
+            <string>ICCID</string>
+            <string>VERSION</string>
+            <string>PRODUCT</string>
+        </array>
+    </dict>
+    <key>PayloadOrganization</key>
+    <string>Ruan Dev</string>
+    <key>PayloadDisplayName</key>
+    <string>Extração de UDID</string>
+    <key>PayloadDescription</key>
+    <string>Este perfil extrai o UDID do seu dispositivo para registro no sistema.</string>
+    <key>PayloadType</key>
+    <string>Profile Service</string>
+    <key>PayloadIdentifier</key>
+    <string>com.ruandev.udid.config</string>
+    <key>PayloadUUID</key>
+    <string>9CF4242B-B1CC-452D-88FA-331C5477E721</string>
+    <key>PayloadVersion</key>
+    <integer>1</integer>
+</dict>
+</plist>`;
+
+    res.set("Content-Type", "application/x-apple-aspen-config");
+    res.set("Content-Disposition", 'attachment; filename="udid.mobileconfig"');
+    res.send(profile);
+  });
+
   app.use("/udid", express.raw({ type: "*/*" }));
 
   app.post("/udid", async (req, res) => {
     try {
       const data = req.body.toString("binary");
+      console.log("Recebendo dados do iOS...");
+      
       const udid = data.match(/<key>UDID<\/key>\s*<string>(.*?)<\/string>/)?.[1];
       const product = data.match(/<key>PRODUCT<\/key>\s*<string>(.*?)<\/string>/)?.[1];
       const version = data.match(/<key>VERSION<\/key>\s*<string>(.*?)<\/string>/)?.[1];
 
       if (udid) {
+        console.log(`UDID Extraído: ${udid} para o dispositivo ${product}`);
         const db = await getDb();
         if (db) {
           await db.insert(devices).values({
@@ -57,7 +105,9 @@ async function startServer() {
             set: { lastSeen: new Date(), status: "online" }
           });
         }
-        res.send(`<html><body style="font-family:sans-serif;text-align:center;margin-top:40px;"><h2>Device Registered</h2><p>UDID: ${udid}</p><p>Device: ${product}</p><p>iOS: ${version}</p></body></html>`);
+        // Redireciona o usuário de volta para a aba de devices do site
+        const host = req.get("host");
+        res.status(301).redirect(`https://${host}/devices?udid=${udid}`);
       } else {
         res.status(400).send("Não foi possível extrair o UDID.");
       }
