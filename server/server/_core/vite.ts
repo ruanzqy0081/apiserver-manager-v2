@@ -31,8 +31,8 @@ export async function setupVite(app: Express, server: Server) {
     next();
   });
 
-  app.get("/udid.mobileconfig", (req, res, next) => {
-    const filePath = path.resolve(import.meta.dirname, "../../client/public/udid.mobileconfig");
+  app.get("/getudid.mobileconfig", (req, res, next) => {
+    const filePath = path.resolve(import.meta.dirname, "../../client/public/getudid.mobileconfig");
     if (fs.existsSync(filePath)) {
       res.set("Content-Type", "application/x-apple-aspen-config");
       return res.sendFile(filePath);
@@ -42,21 +42,10 @@ export async function setupVite(app: Express, server: Server) {
 
   app.use("*", async (req, res, next) => {
     const url = req.originalUrl;
-
     try {
-      const clientTemplate = path.resolve(
-        import.meta.dirname,
-        "../..",
-        "client",
-        "index.html"
-      );
-
-      // always reload the index.html file from disk incase it changes
+      const clientTemplate = path.resolve(import.meta.dirname, "../..", "client", "index.html");
       let template = await fs.promises.readFile(clientTemplate, "utf-8");
-      template = template.replace(
-        `src="/src/main.tsx"`,
-        `src="/src/main.tsx?v=${nanoid()}"`
-      );
+      template = template.replace(`src="/src/main.tsx"`, `src="/src/main.tsx?v=${nanoid()}"`);
       const page = await vite.transformIndexHtml(url, template);
       res.status(200).set({ "Content-Type": "text/html" }).end(page);
     } catch (e) {
@@ -68,10 +57,14 @@ export async function setupVite(app: Express, server: Server) {
 
 export function serveStatic(app: Express) {
   const distPath = path.resolve(import.meta.dirname, "../../dist/public");
-  
-  // Rota específica para o mobileconfig com MIME type correto em produção
-  app.get("/udid.mobileconfig", (req, res, next) => {
-    const filePath = path.resolve(distPath, "udid.mobileconfig");
+
+  if (!fs.existsSync(distPath)) {
+    throw new Error(`Could not find build artifacts in ${distPath}. Please build the client first.`);
+  }
+
+  // Servir getudid.mobileconfig com MIME type correto em produção
+  app.get("/getudid.mobileconfig", (req, res, next) => {
+    const filePath = path.resolve(distPath, "getudid.mobileconfig");
     if (fs.existsSync(filePath)) {
       res.set("Content-Type", "application/x-apple-aspen-config");
       return res.sendFile(filePath);
