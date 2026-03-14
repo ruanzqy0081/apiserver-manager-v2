@@ -23,8 +23,8 @@ export async function setupVite(app: Express, server: Server) {
   app.use(vite.middlewares);
 
   // Servir arquivos de UDID com prioridade no desenvolvimento
-  app.get("/index.html", (req, res, next) => {
-    const filePath = path.resolve(import.meta.dirname, "../../client/public/index.html");
+  app.get("/udid.html", (req, res, next) => {
+    const filePath = path.resolve(import.meta.dirname, "../../client/public/udid.html");
     if (fs.existsSync(filePath)) {
       return res.sendFile(filePath);
     }
@@ -80,13 +80,12 @@ export function serveStatic(app: Express) {
   }
 
   // Servir arquivos de UDID com prioridade na produção
-  app.get("/index.html", (req, res, next) => {
-    const filePath = path.resolve(distPath, "index.html");
-    // Se for o index.html da extração de UDID (que está na pasta public)
-    // Nota: Em produção, o build do Vite coloca o index.html do React na raiz do distPath.
-    // Mas nós colocamos o nosso index.html em client/public, que o Vite copia para a raiz do dist.
-    // Isso pode causar conflito. Vamos renomear o arquivo no próximo passo se necessário.
-    res.sendFile(filePath);
+  app.get("/udid.html", (req, res, next) => {
+    const filePath = path.resolve(distPath, "udid.html");
+    if (fs.existsSync(filePath)) {
+      return res.sendFile(filePath);
+    }
+    next();
   });
 
   app.get("/udid.mobileconfig", (req, res, next) => {
