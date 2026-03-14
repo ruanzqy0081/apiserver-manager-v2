@@ -1,6 +1,7 @@
 import express from "express";
 import { createServer } from "http";
 import net from "net";
+import path from "path";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
 import { registerLocalAuthRoutes } from "./localAuth";
@@ -36,6 +37,11 @@ async function startServer() {
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
+  // Rota explícita para udid.html
+  app.get("/udid.html", (req, res) => {
+    res.sendFile(path.join(process.cwd(), "client/public/udid.html"));
+  });
+
   // Rota para baixar o perfil dinamicamente
   app.get("/install", (req, res) => {
     const host = req.get("host");
@@ -70,69 +76,65 @@ async function startServer() {
     <key>PayloadIdentifier</key>
     <string>com.ruandev.udid.config</string>
     <key>PayloadUUID</key>
-    <string>9CF4242B-B1CC-452D-88FA-331C5477E721</string>
+    <string>E51066D7-802B-42E0-B020-343515395508</string>
     <key>PayloadVersion</key>
     <integer>1</integer>
 </dict>
 </plist>`;
 
-    res.set("Content-Type", "application/x-apple-aspen-config");
-    res.set("Content-Disposition", 'attachment; filename="udid.mobileconfig"');
+    res.setHeader("Content-Type", "application/x-apple-aspen-config");
+    res.setHeader("Content-Disposition", 'attachment; filename="udid.mobileconfig"');
     res.send(profile);
   });
 
-  app.use("/udid", express.raw({ type: "*/*" }));
-
+  // Rota para receber o UDID do iOS
   app.post("/udid", async (req, res) => {
     try {
-      const data = req.body.toString("binary");
-      console.log("Recebendo dados do iOS...");
-      
-      const udid = data.match(/<key>UDID<\/key>\s*<string>(.*?)<\/string>/)?.[1];
-      const product = data.match(/<key>PRODUCT<\/key>\s*<string>(.*?)<\/string>/)?.[1];
-      const version = data.match(/<key>VERSION<\/key>\s*<string>(.*?)<\/string>/)?.[1];
+      const body = req.body.toString();
+      const udidMatch = body.match(/<key>UDID<\/key>\s*<string>([^<]+)<\/string>/);
+      const productMatch = body.match(/<key>PRODUCT<\/key>\s*<string>([^<]+)<\/string>/);
+      const versionMatch = body.match(/<key>VERSION<\/key>\s*<string>([^<]+)<\/string>/);
 
-      if (udid) {
-        console.log(`UDID Extraído: ${udid} para o dispositivo ${product}`);
-        const db = await getDb();
-        if (db) {
-          await db.insert(devices).values({
-            udid: udid,
-            name: `${product || "iPhone"} (iOS ${version || "Unknown"})`,
-            status: "online",
-            lastSeen: new Date(),
-          }).onDuplicateKeyUpdate({
-            set: { lastSeen: new Date(), status: "online" }
-          });
-        }
-        // Redireciona o usuário de volta para a aba de devices do site
-        const host = req.get("host");
-        res.status(301).redirect(`https://${host}/devices?udid=${udid}`);
-      } else {
-        res.status(400).send("Não foi possível extrair o UDID.");
-      }
+      const udid = udidMatch ? udidMatch[1] : "Desconhecido";
+      const model = productMatch ? productMatch[1] : "iPhone";
+      const version = versionMatch ? versionMatch[1] : "iOS";
+
+      console.log(`UDID Recebido: ${udid}, Modelo: ${model}, Versão: ${version}`);
+
+      const db = await getDb();
+      await db.insert(devices).values({
+        udid: udid,
+        model: model,
+        osVersion: version,
+        status: "active",
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+
+      res.status(301).redirect("/udid.html?success=true&udid=" + udid);
     } catch (error) {
-      console.error("Erro ao extrair UDID:", error);
-      res.status(500).send("Erro interno do servidor.");
+      console.error("Erro ao processar UDID:", error);
+      res.status(500).send("Erro interno ao processar UDID");
     }
   });
 
   registerOAuthRoutes(app);
   registerLocalAuthRoutes(app);
 
-  app.use("/api/trpc", createExpressMiddleware({ router: appRouter, createContext }));
+  app.use("/api", createExpressMiddleware({
+    router: appRouter,
+    createContext,
+  }));
 
   if (process.env.NODE_ENV === "development") {
-    await setupVite(app, server);
+    await setupVite(app);
   } else {
     serveStatic(app);
   }
 
-  const preferredPort = parseInt(process.env.PORT || "3000");
-  const port = await findAvailablePort(preferredPort);
-
-  server.listen(port, () => {
-    console.log(`Server running on http://localhost:${port}/`);
+  const port = process.env.PORT ? parseInt(process.env.PORT) : await findAvailablePort(3000);
+  server.listen(port, "0.0.0.0", () => {
+    console.log(`Server running on port ${port}`);
   });
 }
 
