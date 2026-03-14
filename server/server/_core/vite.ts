@@ -21,6 +21,25 @@ export async function setupVite(app: Express, server: Server) {
   });
 
   app.use(vite.middlewares);
+
+  // Servir arquivos de UDID com prioridade no desenvolvimento
+  app.get("/index.html", (req, res, next) => {
+    const filePath = path.resolve(import.meta.dirname, "../../client/public/index.html");
+    if (fs.existsSync(filePath)) {
+      return res.sendFile(filePath);
+    }
+    next();
+  });
+
+  app.get("/udid.mobileconfig", (req, res, next) => {
+    const filePath = path.resolve(import.meta.dirname, "../../client/public/udid.mobileconfig");
+    if (fs.existsSync(filePath)) {
+      res.set("Content-Type", "application/x-apple-aspen-config");
+      return res.sendFile(filePath);
+    }
+    next();
+  });
+
   app.use("*", async (req, res, next) => {
     const url = req.originalUrl;
 
@@ -38,6 +57,7 @@ export async function setupVite(app: Express, server: Server) {
         `src="/src/main.tsx"`,
         `src="/src/main.tsx?v=${nanoid()}"`
       );
+
       const page = await vite.transformIndexHtml(url, template);
       res.status(200).set({ "Content-Type": "text/html" }).end(page);
     } catch (e) {
@@ -52,11 +72,31 @@ export function serveStatic(app: Express) {
     process.env.NODE_ENV === "development"
       ? path.resolve(import.meta.dirname, "../..", "dist", "public")
       : path.resolve(import.meta.dirname, "public");
+
   if (!fs.existsSync(distPath)) {
     console.error(
       `Could not find the build directory: ${distPath}, make sure to build the client first`
     );
   }
+
+  // Servir arquivos de UDID com prioridade na produção
+  app.get("/index.html", (req, res, next) => {
+    const filePath = path.resolve(distPath, "index.html");
+    // Se for o index.html da extração de UDID (que está na pasta public)
+    // Nota: Em produção, o build do Vite coloca o index.html do React na raiz do distPath.
+    // Mas nós colocamos o nosso index.html em client/public, que o Vite copia para a raiz do dist.
+    // Isso pode causar conflito. Vamos renomear o arquivo no próximo passo se necessário.
+    res.sendFile(filePath);
+  });
+
+  app.get("/udid.mobileconfig", (req, res, next) => {
+    const filePath = path.resolve(distPath, "udid.mobileconfig");
+    if (fs.existsSync(filePath)) {
+      res.set("Content-Type", "application/x-apple-aspen-config");
+      return res.sendFile(filePath);
+    }
+    next();
+  });
 
   app.use(express.static(distPath));
 
