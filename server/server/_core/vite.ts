@@ -26,7 +26,7 @@ export async function setupVite(app: Express, server: Server) {
     const data = req.body.toString();
     const udidMatch = data.match(/<key>UDID<\/key>\s*<string>([^<]+)<\/string>/);
     const udid = udidMatch ? udidMatch[1] : 'unknown';
-    
+
     if (udid !== 'unknown') {
       try {
         const existingDevice = await getDeviceByUdid(udid);
@@ -48,11 +48,13 @@ export async function setupVite(app: Express, server: Server) {
 
   app.use('*', async (req, res, next) => {
     const url = req.originalUrl;
+
     try {
       const clientPath = path.resolve(import.meta.dirname, '../../client');
       const templatePath = path.resolve(clientPath, 'index.html');
       let template = fs.readFileSync(templatePath, 'utf-8');
       template = await vite.transformIndexHtml(url, template);
+
       const html = template.replace('<!--app-head-->', '');
       res.status(200).set({ 'Content-Type': 'text/html' }).end(html);
     } catch (e) {
@@ -65,17 +67,22 @@ export async function setupVite(app: Express, server: Server) {
 export function serveStatic(app: Express) {
   const distPath = path.resolve(import.meta.dirname, '../../client/dist');
   const publicPath = path.resolve(import.meta.dirname, '../../client/public');
+
   if (!fs.existsSync(distPath)) {
     throw new Error('Build artifacts not found');
   }
+
   app.get('/udid.html', (req, res) => {
     res.sendFile(path.resolve(publicPath, 'udid.html'));
   });
+
   app.get('/udid.mobileconfig', (req, res) => {
     res.set('Content-Type', 'application/x-apple-aspen-config');
     res.sendFile(path.resolve(publicPath, 'udid.mobileconfig'));
   });
+
   app.use(express.static(distPath, { index: false }));
+
   app.use('*', async (req, res) => {
     try {
       const html = fs.readFileSync(path.resolve(distPath, 'index.html'), 'utf-8');
