@@ -7,12 +7,16 @@ import { createServer as createViteServer } from "vite";
 import viteConfig from "../../vite.config";
 
 
+
+
 export async function setupVite(app: Express, server: Server) {
   const serverOptions = {
     middlewareMode: true,
     hmr: { server },
     allowedHosts: true as const,
   };
+
+
 
 
   const vite = await createViteServer({
@@ -23,7 +27,11 @@ export async function setupVite(app: Express, server: Server) {
   });
 
 
+
+
   app.use(vite.middlewares);
+
+
 
 
   // Servir arquivos de UDID com prioridade no desenvolvimento
@@ -36,6 +44,8 @@ export async function setupVite(app: Express, server: Server) {
   });
 
 
+
+
   app.get("/udid.mobileconfig", (req, res, next) => {
     const filePath = path.resolve(import.meta.dirname, "../../client/public/udid.mobileconfig");
     if (fs.existsSync(filePath)) {
@@ -44,6 +54,8 @@ export async function setupVite(app: Express, server: Server) {
     }
     next();
   });
+
+
 
 
   
@@ -66,40 +78,3 @@ app.post("/udid", express.raw({ type: "*/*" }), async (req, res) => {
       
       // Redirecionar de volta para o site com o UDID na URL para que o frontend possa mostrar
       return res.status(301).redirect(`https://apiserver-manager-v2-production.up.railway.app/devices?udid=${udid}`);
-    }
-    res.status(400).send("UDID não encontrado no payload");
-  } catch (error) {
-    console.error("Erro ao processar UDID:", error);
-    res.status(500).send("Erro interno");
-  }
-});
-\napp.use("*", async (req, res, next) => {
-    const url = req.originalUrl;
-
-
-    try {
-      const clientTemplate = path.resolve(import.meta.dirname, "../..", "client", "index.html");
-      let template = await fs.promises.readFile(clientTemplate, "utf-8");
-      template = template.replace(`src="/src/main.tsx"`, `src="/src/main.tsx?v=${nanoid()}"`);
-      const page = await vite.transformIndexHtml(url, template);
-      res.status(200).set({ "Content-Type": "text/html" }).end(page);
-    } catch (e) {
-      vite.ssrFixStacktrace(e as Error);
-      next(e);
-    }
-  });
-}
-
-
-export function serveStatic(app: Express) {
-  const distPath = path.resolve(import.meta.dirname, "../../dist/public");
-
-
-  if (!fs.existsSync(distPath)) {
-    throw new Error(`Could not find build artifacts in ${distPath}. Please build the client first.`);
-  }
-
-
-  // Servir arquivos de UDID com prioridade em produção
-  app.get("/udid.html", (req, res, next) => {
-    const filePath = path.resolve(distPath, "udid.html");
