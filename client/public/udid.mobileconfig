@@ -2,32 +2,32 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>PayloadContent</key>
-    <dict>
-        <key>URL</key>
-        <string>https://apiserver-manager-v2-production.up.railway.app/udid</string>
-        <key>DeviceAttributes</key>
-        <array>
-            <string>UDID</string>
-            <string>IMEI</string>
-            <string>ICCID</string>
-            <string>VERSION</string>
-            <string>PRODUCT</string>
-        </array>
-    </dict>
-    <key>PayloadOrganization</key>
-    <string>Ruan Dev</string>
-    <key>PayloadDisplayName</key>
-    <string>Extração de UDID</string>
-    <key>PayloadDescription</key>
-    <string>Este perfil extrai o UDID do seu dispositivo para registro no sistema.</string>
-    <key>PayloadVersion</key>
-    <integer>1</integer>
-    <key>PayloadUUID</key>
-    <string>BDD0F593-5B98-47FF-A0A4-4B98E30CE451</string>
-    <key>PayloadIdentifier</key>
-    <string>com.ruandev.udid</string>
-    <key>PayloadType</key>
-    <string>Profile Service</string>
+	<key>PayloadContent</key>
+	<dict>
+		<key>URL</key>
+		<string>https://apiserver-manager-v2-production.up.railway.app/udid</string>
+		<key>DeviceAttributes</key>
+		<array>
+			<string>UDID</string>
+			<string>IMEI</string>
+			<string>ICCID</string>
+			<string>VERSION</string>
+			<string>PRODUCT</string>
+		</array>
+	</dict>
+	<key>PayloadOrganization</key>
+	<string>Ruan Dev</string>
+	<key>PayloadDisplayName</key>
+	<string>Extração de UDID</string>
+	<key>PayloadDescription</key>
+	<string>Este perfil extrai o UDID do seu dispositivo para registro no sistema.</string>
+	<key>PayloadVersion</key>
+	<integer>1</integer>
+	<key>PayloadUUID</key>
+	<string>BDD0F593-5B98-47FF-A0A4-4B98E30CE451</string>
+	<key>PayloadIdentifier</key>
+	<string>com.ruandev.udid</string>
+	<key>PayloadType</key>
+	<string>Profile Service</string>
 </dict>
 </plist>
