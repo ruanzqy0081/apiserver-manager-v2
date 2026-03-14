@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+"http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+
+<key>PayloadContent</key>
+<dict>
+    <key>URL</key>
+    <string>https://apiserver-manager-v2-production.up.railway.app/udid</string>
+
+    <key>DeviceAttributes</key>
+    <array>
+        <string>UDID</string>
+        <string>IMEI</string>
+        <string>ICCID</string>
+        <string>VERSION</string>
+        <string>PRODUCT</string>
+        <string>SERIAL</string>
+    </array>
+</dict>
+
+<key>PayloadOrganization</key>
+<string>REALXITER</string>
+
+<key>PayloadDisplayName</key>
+<string>REALXITER Device Registration</string>
+
+<key>PayloadIdentifier</key>
+<string>com.realxiter.udid</string>
+
+<key>PayloadUUID</key>
+<string>9E7A1B7C-4E2A-4C6B-8C51-9F9F9A1C1234</string>
+
+<key>PayloadType</key>
+<string>Profile Service</string>
+
+<key>PayloadVersion</key>
+<integer>1</integer>
+
+</dict>
+</plist>
